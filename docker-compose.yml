@@ -1,0 +1,103 @@
+version: '3.9'
+
+services:
+  backend:
+    build:
+      context: ./app/backendJava/SFTG-backend
+      dockerfile: Dockerfile
+    image: anupkumar9705/sftg-backend:latest
+    container_name: sftg_backend
+    depends_on:
+      mysql:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      DB_URL: jdbc:mysql://mysql_db:3306/SFTG?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: 3310
+      MAIL_HOST: ${MAIL_HOST}
+      MAIL_PORT: ${MAIL_PORT}
+      MAIL_USERNAME: ${MAIL_USERNAME}
+      MAIL_PASSWORD: ${MAIL_PASSWORD}
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN}
+      FILE_UPLOAD_DIR: /app/uploads
+    ports:
+      - "8000:8000"
+    volumes:
+      - uploads_data:/app/uploads   # ← files survive restarts
+    restart: no
+    networks:
+      - sftg-network
+
+  frontend:
+    build:
+      context: ./app/backendJava/SFTG-frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL}   # ← injected at build time
+    image: anupkumar9705/sftg-frontend:latest
+    container_name: sftg_frontend
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    restart: no
+    networks:
+      - sftg-network
+
+  mysql:
+    image: mysql:8.0
+    container_name: mysql_db
+    environment:
+      MYSQL_DATABASE: SFTG
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: no
+    networks:
+      - sftg-network
+
+  clamav:
+    image: clamav/clamav:latest
+    container_name: clamav_service
+    ports:
+      - "3310:3310"
+    environment:
+      - CLAMD_STARTUP_TIMEOUT=120
+    command: >
+      /bin/sh -c "
+      freshclam &&
+      clamd --foreground=true
+      "
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "127.0.0.1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - sftg-network
+
+volumes:
+  mysql_data:
+  uploads_data:
+
+networks:
+  sftg-network:
+    driver: bridge
