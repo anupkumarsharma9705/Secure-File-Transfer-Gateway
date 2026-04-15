@@ -19,8 +19,6 @@ export default function Login() {
   const [error, setError]       = useState("");
   const navigate = useNavigate();
 
-  import api, { apiWithRetry } from "../api/axios";
-
   const handleLogin = async () => {
     if (!email || !password) { setError("Please fill in all fields."); return; }
     setLoading(true); setError("");
