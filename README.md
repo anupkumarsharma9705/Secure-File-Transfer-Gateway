@@ -2,12 +2,8 @@
 
 A production-grade, full-stack secure file sharing platform built with **Java Spring Boot** and **React**. Designed with Fintech-level security standards including JWT authentication, token blacklisting, virus scanning, audit logging, and expiring share links.
 
-> **Live Demo:** [https://sftg-frontend.up.railway.app](https://sftg-frontend.up.railway.app)  
-> **API Base URL:** [https://sftg-backend.onrender.com](https://sftg-backend.onrender.com)  
 > **Swagger UI:** [https://sftg-backend.onrender.com/swagger-ui/index.html](https://sftg-backend.onrender.com/swagger-ui/index.html)
-
-> ⚠️ **Note on Live Demo:** Backend is hosted on Render free tier. First load may take 60–90 seconds to wake up. Virus scanning (ClamAV / VirusTotal) requires infrastructure beyond free tier limits — fully functional in local Docker environment. Contact me for a complete live demo with all features enabled.
-
+> 
 ---
 
 ## 📋 Table of Contents
