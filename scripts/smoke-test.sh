@@ -15,11 +15,12 @@ FAIL=0
 check() {
     local desc="$1"
     local cmd="$2"
+    echo -n "Checking: $desc ... "
     if eval "$cmd" >/dev/null 2>&1; then
-        echo "✅ $desc"
+        echo "✅ PASS"
         ((PASS++))
     else
-        echo "❌ $desc"
+        echo "❌ FAIL"
         ((FAIL++))
     fi
 }
@@ -28,11 +29,12 @@ check_json() {
     local desc="$1"
     local url="$2"
     local jq_filter="$3"
+    echo -n "Checking: $desc ... "
     if curl -fsS "$url" | jq -e "$jq_filter" >/dev/null 2>&1; then
-        echo "✅ $desc"
+        echo "✅ PASS"
         ((PASS++))
     else
-        echo "❌ $desc"
+        echo "❌ FAIL"
         ((FAIL++))
     fi
 }
@@ -98,5 +100,11 @@ if [ $FAIL -eq 0 ]; then
     exit 0
 else
     echo "⚠️  $FAIL SMOKE TESTS FAILED"
+    echo "=== Debug info ==="
+    docker compose ps
+    echo "=== Backend logs (last 30 lines) ==="
+    docker compose logs --tail=30 backend
+    echo "=== Frontend logs (last 20 lines) ==="
+    docker compose logs --tail=20 frontend
     exit 1
 fi

@@ -20,7 +20,7 @@ COPY --from=build --chown=appuser:appgroup /app/target/*.jar app.jar
 USER appuser
 EXPOSE 8000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
-    CMD wget -qO- http://localhost:8000/actuator/health/liveness || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+    CMD wget -qO- http://localhost:8000/actuator/health/readiness >/dev/null 2>&1 || exit 1
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
