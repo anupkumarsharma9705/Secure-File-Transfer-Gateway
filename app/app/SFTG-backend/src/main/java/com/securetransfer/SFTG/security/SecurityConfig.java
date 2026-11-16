@@ -41,6 +41,10 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/verify-otp",
                                 "/api/auth/login",
+                                "/api/stats/health",
+                                "/actuator/health/**",
+                                "/actuator/info",
+                                "/actuator/prometheus",
                                 "/v3/api-docs/**",
                                 "/swagger-ui/**",
                                 "/swagger-ui.html").permitAll() // Allow public access to auth endpoints

@@ -47,7 +47,7 @@ public class FileController {
 
     @GetMapping("/download/{filename:.+}")
     public ResponseEntity<Resource> downloadFile(
-            @PathVariable String storedFilename,
+            @PathVariable("filename") String storedFilename,
             Authentication authentication) {
 
         Resource resource = fileService.loadFileAsResource(

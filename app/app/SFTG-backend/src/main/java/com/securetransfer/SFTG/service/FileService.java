@@ -10,6 +10,7 @@ import com.securetransfer.SFTG.model.FileEntity;
 import com.securetransfer.SFTG.model.SharedLink;
 import com.securetransfer.SFTG.model.User;
 import com.securetransfer.SFTG.repository.*;
+import lombok.extern.slf4j.Slf4j;
 import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,6 +33,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Service
+@Slf4j
 public class FileService {
 
     @Value("${file.upload-dir}")
@@ -50,7 +52,7 @@ public class FileService {
     private FileRepository fileRepository;
 
     @Autowired
-    private ClamAVService clamAVService;
+    private VirusTotalService virusTotalService;
 
     @Autowired
     private UserRepository userRepository;
@@ -92,9 +94,9 @@ public class FileService {
             // Copy file content
             Files.copy(file.getInputStream(), targetLocation, StandardCopyOption.REPLACE_EXISTING);
 
-            // 🔐 SECURITY: Virus scan using ClamAV
+            // 🔐 SECURITY: Virus scan via VirusTotal (hash lookup, upload only if unknown)
             try {
-                clamAVService.scanFile(targetLocation);
+                virusTotalService.scanFile(targetLocation);
             } catch (Exception ex) {
                 Files.deleteIfExists(targetLocation); // cleanup infected file
                 throw ex;
@@ -132,7 +134,8 @@ public class FileService {
             try (InputStream stream = Files.newInputStream(targetLocation)) {
                 mimeType = tika.detect(stream, originalFilename);
             } catch (IOException e) {
-                System.err.println("Could not detect MIME type with Tika for " + storedFilename + ". Falling back to generic type. Error: " + e.getMessage());
+                log.warn("Could not detect MIME type with Tika for {} — falling back to application/octet-stream: {}",
+                        storedFilename, e.getMessage());
                 mimeType = "application/octet-stream"; // Fallback to generic binary
             }
             if (mimeType.equals("application/x-msdownload")

@@ -1,0 +1,404 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: docker.io
+  BACKEND_IMAGE: ${{ github.repository_owner }}/sftg-backend
+  FRONTEND_IMAGE: ${{ github.repository_owner }}/sftg-frontend
+
+jobs:
+  # ============================================================
+  # BACKEND: Build, Unit Test, Static Analysis, Contract Tests
+  # ============================================================
+  backend-build-test:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+    env:
+      NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+    defaults:
+      run:
+        working-directory: ./app/app/SFTG-backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Needed for trufflehog
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Cache Maven packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Build & Unit Test
+        run: mvn -B clean verify
+
+      - name: SpotBugs
+        run: mvn -B spotbugs:check
+
+      - name: PMD
+        run: mvn -B pmd:check
+
+      - name: Checkstyle
+        run: mvn -B checkstyle:check
+
+      - name: OWASP Dependency Check
+        if: env.NVD_API_KEY != ''
+        run: mvn -B org.owasp:dependency-check-maven:check
+        continue-on-error: false
+
+      - name: OWASP Dependency Check skipped
+        if: env.NVD_API_KEY == ''
+        run: echo "::warning::NVD_API_KEY secret not set — dependency CVE scan skipped. Add a free key from nvd.nist.gov."
+
+      - name: Upload Dependency Check Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-report
+          path: target/dependency-check-report.html
+
+      - name: Upload JaCoCo Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+
+      - name: TruffleHog Secrets Scan
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: ${{ github.sha }}
+          extra_args: --only-verified
+
+  # ============================================================
+  # BACKEND: Contract Tests (Pact)
+  # ============================================================
+  backend-contract-tests:
+    name: Backend Contract Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app/app/SFTG-backend
+    needs: backend-build-test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Run Pact Consumer Contract Tests
+        run: mvn -B test -Dtest=AuthContractTest
+
+  # ============================================================
+  # BACKEND: Integration Tests (Testcontainers)
+  # ============================================================
+  backend-integration-tests:
+    name: Backend Integration Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app/app/SFTG-backend
+    needs: backend-build-test
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: SFTG
+          MYSQL_ROOT_PASSWORD: testpass
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpass
+        ports: [3306:3306]
+        options: --health-cmd="mysqladmin ping -h localhost" --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          cache: 'maven'
+
+      - name: Run Integration Tests
+        run: mvn -B verify -DskipUnitTests -DskipContractTests
+        env:
+          DB_URL: jdbc:mysql://localhost:3306/SFTG?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          DB_USERNAME: testuser
+          DB_PASSWORD: testpass
+          JWT_SECRET: dGVzdF9zZWNyZXRfa2V5X3RoYXRfaXNfNjRfYnl0ZXNfbG9uZ19mb3JfaHM1MTI=
+          JWT_EXPIRATION_MS: 7200000
+          BREVO_API_KEY: test
+          CORS_ALLOWED_ORIGIN: http://localhost:5173
+
+  # ============================================================
+  # FRONTEND: Build, Lint, Test
+  # ============================================================
+  frontend-build-test:
+    name: Frontend Build & Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app/app/SFTG-frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_API_URL: http://localhost:8000/api
+
+      # - name: Unit Tests (add when you have them)
+      #   run: npm run test -- --run
+
+  # ============================================================
+  # DOCKER: Build & Scan Images
+  # ============================================================
+  docker-build-scan:
+    name: Docker Build & Scan
+    runs-on: ubuntu-latest
+    needs: [backend-build-test, frontend-build-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Backend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/app/SFTG-backend
+          push: false
+          tags: ${{ env.BACKEND_IMAGE }}:test
+          load: true
+
+      - name: Build Frontend Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/app/SFTG-frontend
+          push: false
+          tags: ${{ env.FRONTEND_IMAGE }}:test
+          load: true
+          build-args: |
+            VITE_API_URL=http://localhost:8000/api
+
+      - name: Trivy Scan Backend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.BACKEND_IMAGE }}:test
+          format: 'sarif'
+          output: 'trivy-backend.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Trivy Scan Frontend
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.FRONTEND_IMAGE }}:test
+          format: 'sarif'
+          output: 'trivy-frontend.sarif'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+
+      - name: Upload Trivy Results
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-backend.sarif
+          category: backend
+
+      - name: Upload Trivy Results Frontend
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: trivy-frontend.sarif
+          category: frontend
+
+  # ============================================================
+  # SMOKE TEST: Full Stack with Docker Compose
+  # ============================================================
+  smoke-test:
+    name: Compose Smoke Test (11 Assertions)
+    runs-on: ubuntu-latest
+    needs: docker-build-scan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create .env for testing
+        run: |
+          cat > .env << 'EOF'
+          DB_URL=jdbc:mysql://mysql:3306/SFTG?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+          DB_USERNAME=testuser
+          DB_PASSWORD=testpass
+          JWT_SECRET=dGVzdF9zZWNyZXRfa2V5X3RoYXRfaXNfNjRfYnl0ZXNfbG9uZ19mb3JfaHM1MTI=
+          JWT_EXPIRATION_MS=7200000
+          MAIL_HOST=smtp-relay.brevo.com
+          MAIL_PORT=587
+          MAIL_USERNAME=test
+          MAIL_PASSWORD=test
+          BREVO_API_KEY=test
+          CORS_ALLOWED_ORIGIN=http://localhost
+          VITE_API_URL=http://localhost:8000/api
+          EOF
+
+      - name: Start Full Stack
+        run: docker compose up --build -d --wait
+
+      - name: Wait for Services
+        run: |
+          timeout 120 bash -c 'until curl -fsS http://localhost:8000/api/stats/health | grep -q OK; do sleep 2; done'
+          timeout 30 bash -c 'until curl -fsS http://localhost | grep -q "<!DOCTYPE html>"; do sleep 2; done'
+
+      - name: Run Smoke Tests
+        run: |
+          chmod +x scripts/smoke-test.sh
+          ./scripts/smoke-test.sh
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
+
+  # ============================================================
+  # REPORT: Coverage & Quality Gates
+  # ============================================================
+  quality-gate:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+    needs: [backend-build-test, backend-integration-tests, backend-contract-tests, frontend-build-test, smoke-test]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: jacoco-report
+          path: app/app/SFTG-backend/target/site/jacoco
+
+      - name: Check Coverage (JaCoCo)
+        run: |
+          python3 - <<'PY'
+          import csv
+          path = 'app/app/SFTG-backend/target/site/jacoco/jacoco.csv'
+          rows = list(csv.DictReader(open(path)))
+          missed = sum(int(r['LINE_MISSED']) for r in rows)
+          covered = sum(int(r['LINE_COVERED']) for r in rows)
+          total = covered + missed
+          pct = covered * 100.0 / total if total else 0.0
+          print(f"Line Coverage: {pct:.1f}% ({covered}/{total})")
+          if pct < 80:
+              raise SystemExit(f"::error::Coverage {pct:.1f}% is below 80% threshold")
+          PY
+
+      - name: All Checks Passed
+        run: echo "✅ All quality gates passed"
+
+  # ============================================================
+  # DEPLOY PREVIEW (on PR)
+  # ============================================================
+  deploy-preview:
+    name: Deploy Preview
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Deploy to Preview Environment
+        run: |
+          echo "Deploy preview for PR #${{ github.event.pull_request.number }}"
+          # Add your preview deployment logic here (Render, Railway, Vercel, etc.)
+          # Example: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+
+  # ============================================================
+  # DEPLOY PRODUCTION (on tag)
+  # ============================================================
+  deploy-production:
+    name: Deploy Production
+    runs-on: ubuntu-latest
+    needs: quality-gate
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Version
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Build & Push Backend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/app/SFTG-backend
+          push: true
+          tags: |
+            ${{ env.BACKEND_IMAGE }}:${{ steps.version.outputs.VERSION }}
+            ${{ env.BACKEND_IMAGE }}:latest
+
+      - name: Build & Push Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./app/app/SFTG-frontend
+          push: true
+          tags: |
+            ${{ env.FRONTEND_IMAGE }}:${{ steps.version.outputs.VERSION }}
+            ${{ env.FRONTEND_IMAGE }}:latest
+          build-args: |
+            VITE_API_URL=${{ secrets.PRODUCTION_API_URL }}
+
+      - name: Deploy to Production
+        run: |
+          echo "Deploy version ${{ steps.version.outputs.VERSION }} to production"
+          # Add your production deployment logic here
+          # Example: curl -X POST ${{ secrets.RENDER_PROD_DEPLOY_HOOK }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.version.outputs.VERSION }}
+          generate_release_notes: true

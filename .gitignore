@@ -1,0 +1,64 @@
+# ---- Build artifacts ----
+target/
+build/
+dist/
+*.jar
+*.war
+*.class
+node_modules/
+.pnp
+.pnp.js
+
+# ---- Secrets & environment ----
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.keystore
+*.p12
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+.classpath
+.project
+.settings/
+
+# ---- OS ----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ---- Logs ----
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Docker ----
+.docker/
+docker-compose.override.yml
+
+# ---- Test / coverage ----
+coverage/
+.nyc_output/
+*.lcov
+jacoco.exec
+
+# ---- Uploads (runtime data) ----
+app/app/SFTG-backend/uploads/
+
+# ---- Misc ----
+*.tmp
+*.temp
+.cache/
+.gstack/tmp/

@@ -55,7 +55,7 @@ public class FileShareController {
 
         // Save log
         DownloadLog log = DownloadLog.builder()
-                .downloaderEmail(authentication != null ? authentication.getName() : "ANONYMOUS")
+                .downloaderEmail(authentication.getName())
                 .downloadedAt(Instant.now())
                 .sharedLink(sharedLink)
                 .build();

@@ -38,7 +38,7 @@ export default function Navbar() {
   const handleLogout = async () => {
     setAnchorEl(null);
     setDrawerOpen(false);
-    try { await api.post("/auth/logout"); } catch (e) {}
+    try { await api.post("/auth/logout"); } catch { /* logout is best-effort */ }
     finally {
       localStorage.removeItem("token");
       localStorage.removeItem("userEmail");

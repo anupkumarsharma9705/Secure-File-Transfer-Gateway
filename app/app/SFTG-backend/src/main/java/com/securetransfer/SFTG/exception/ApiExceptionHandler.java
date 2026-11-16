@@ -9,11 +9,14 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import lombok.extern.slf4j.Slf4j;
+
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 @ControllerAdvice
+@Slf4j
 public class ApiExceptionHandler {
 
     private Map<String, Object> baseBody(HttpStatus status, String error, String message) {
@@ -101,11 +104,18 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(AccountLockedException.class)
+    public ResponseEntity<Object> handleAccountLocked(AccountLockedException ex) {
+        return new ResponseEntity<>(
+                baseBody(HttpStatus.LOCKED, "Account Locked", ex.getMessage()),
+                HttpStatus.LOCKED
+        );
+    }
 
     // MUST be LAST
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneric(Exception ex) {
-        ex.printStackTrace();
+        log.error("Unhandled exception", ex);
         return new ResponseEntity<>(
                 baseBody(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error",
                         "An unexpected error occurred. Please try again later."),

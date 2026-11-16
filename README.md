@@ -3,7 +3,9 @@
 A production-grade, full-stack secure file sharing platform built with **Java Spring Boot** and **React**. Designed with Fintech-level security standards including JWT authentication, token blacklisting, virus scanning, audit logging, and expiring share links.
 
 > **Swagger UI:** [https://sftg-backend.onrender.com/swagger-ui/index.html](https://sftg-backend.onrender.com/swagger-ui/index.html)
-> 
+
+> ⚠️ **Note on Live Demo:** Backend is hosted on Render free tier. First load may take 60–90 seconds to wake up. Virus scanning uses the VirusTotal API and is disabled unless `VIRUSTOTAL_API_KEY` is set — uploads still work with scanning skipped.
+
 ---
 
 ## 📋 Table of Contents
@@ -31,7 +33,7 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 - 📧 **Email OTP Verification** via Brevo API before account activation
 - 🔒 **BCrypt Password Hashing** with secure salting
 - 🛡️ **Rate Limiting** on public endpoints using Bucket4j token bucket algorithm
-- 🦠 **Virus Scanning** — ClamAV (local Docker) / VirusTotal API (cloud)
+- 🦠 **Virus Scanning** — VirusTotal v3 API (hash lookup, upload only unknown files; lightweight, no local scanner)
 - 🔍 **MIME Type Detection** via Apache Tika (content-based, not extension-based)
 - 🚫 **Executable File Blocking** — rejects .exe, .sh, .bat uploads
 - 🛡️ **Path Traversal Protection** on all file operations
@@ -89,7 +91,7 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 | Service | Purpose |
 |---|---|
 | Render | Backend hosting (Docker) |
-| Railway | Frontend hosting (Docker) + MySQL database + ClamAV |
+| Railway | Frontend hosting (Docker) + MySQL database |
 | Cloudinary | Cloud file storage |
 | Docker Hub | Container image registry |
 | UptimeRobot | Keep-alive monitoring |
@@ -256,10 +258,12 @@ git clone https://github.com/anupkumar9705/SFTG.git
 cd SFTG
 ```
 
-**2. Start dependencies (MySQL + ClamAV)**
+**2. Start dependencies (MySQL)**
 ```bash
-docker-compose up mysql_db clamav_service
+docker-compose up mysql_db
 ```
+Virus scanning needs no local service: it calls the VirusTotal API. Leave
+`VIRUSTOTAL_API_KEY` unset to skip scanning during local development.
 
 **3. Configure backend**
 
@@ -272,8 +276,8 @@ spring.datasource.password=your_mysql_password
 jwt.secret=your_64_byte_base64_secret
 jwt.expirationMs=7200000
 
-clamav.host=127.0.0.1
-clamav.port=3310
+virustotal.api.key=
+virustotal.upload-unknown=true
 
 spring.mail.host=smtp-relay.brevo.com
 spring.mail.port=587
@@ -331,8 +335,8 @@ docker-compose up --build
 | `DB_PASSWORD` | Database password | `strongpassword` |
 | `JWT_SECRET` | 64-byte base64 secret | `openssl rand -base64 64` |
 | `JWT_EXPIRATION_MS` | Token expiry in ms | `7200000` |
-| `CLAMAV_HOST` | ClamAV hostname | `127.0.0.1` |
-| `CLAMAV_PORT` | ClamAV port | `3310` |
+| `VIRUSTOTAL_API_KEY` | VirusTotal API key (blank = scans skipped) | `abc123...` |
+| `VIRUSTOTAL_UPLOAD_UNKNOWN` | Upload files VirusTotal hasn't seen | `true` |
 | `MAIL_HOST` | SMTP host | `smtp-relay.brevo.com` |
 | `MAIL_PORT` | SMTP port | `587` |
 | `MAIL_USERNAME` | SMTP username | `brevo_user` |
@@ -449,7 +453,7 @@ SFTG/
 In-memory blacklists reset on server restart, making logged-out tokens valid again. Using MySQL with an index on the token column gives fast lookups with restart-proof persistence. A scheduled job cleans expired tokens hourly to keep the table small.
 
 ### 2. Non-Blocking Virus Scanner
-ClamAV and VirusTotal are treated as non-blocking services. `ConnectException` and timeouts allow the upload to proceed with a warning log rather than failing the user request. Only a confirmed `MALICIOUS` result blocks the upload. This matches how production systems handle optional security services that may be temporarily unavailable.
+VirusTotal is treated as a non-blocking service. Network failures, API errors and rate limits allow the upload to proceed with a warning log rather than failing the user request. Only a confirmed malicious verdict (`malicious > 0`) blocks the upload. A local ClamAV daemon was rejected because its signature database needs ~1 GB of RAM, which does not fit small/free cloud instances; VirusTotal's hash-lookup-first flow also keeps the free-tier quota (4 req/min) workable.
 
 ### 3. Cascade Delete Order
 Deleting a file requires deleting in FK-constrained order: `download_logs → shared_links → files`. The scheduler handles this explicitly in a `@Transactional` method rather than relying on JPA cascade, giving explicit control over the deletion sequence.
@@ -494,5 +498,5 @@ This project is developed for educational and portfolio demonstration purposes.
 
 <div align="center">
   <strong>Built with production-grade security patterns for Fintech readiness</strong><br/>
-  <sub>Spring Boot · React · Docker · JWT · ClamAV · Cloudinary · VirusTotal</sub>
+  <sub>Spring Boot · React · Docker · JWT · VirusTotal · Cloudinary</sub>
 </div>

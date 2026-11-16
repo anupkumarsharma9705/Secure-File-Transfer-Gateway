@@ -18,7 +18,12 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/verify-otp" element={<VerifyOtp />} />
-        <Route path="/public/:token" element={<PublicDownload />} />
+        {/* Shared-file download — requires an existing, logged-in user.
+            Not truly "public": the link only reveals a token, the file
+            itself is gated behind auth like everything else. */}
+        <Route path="/public/:token" element={
+          <ProtectedRoute><PublicDownload /></ProtectedRoute>
+        } />
 
         {/* Protected */}
         <Route path="/dashboard" element={

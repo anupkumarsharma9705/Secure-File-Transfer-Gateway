@@ -11,7 +11,7 @@ It provides secure file upload, authentication, rate limiting, email verificatio
 - 📧 Email OTP Verification (Brevo Integration)
 - 🛡 Rate Limiting (Bucket4j)
 - 🦠 File Validation (Apache Tika)
-- 🔍 Virus Scanning Support (ClamAV Integration)
+- 🔍 Virus Scanning Support (VirusTotal API Integration)
 - 📁 Secure File Upload with Expiry Time
 - ⏳ Automatic File Deletion Scheduler
 - 🔒 BCrypt Password Encryption

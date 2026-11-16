@@ -1,0 +1,72 @@
+# Build
+target/
+build/
+dist/
+*.class
+*.jar
+*.war
+*.ear
+
+# IDE
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# Secrets & Local Config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.keystore
+secrets/
+*.p12
+*.pfx
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# AI / Scratch
+.aider*
+File Listing
+*.tmp
+*.bak
+
+# Coverage
+coverage/
+*.lcov
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Go
+vendor/
+*.exe
+*.test
+*.out
+
+# Docker
+.dockerignore
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar

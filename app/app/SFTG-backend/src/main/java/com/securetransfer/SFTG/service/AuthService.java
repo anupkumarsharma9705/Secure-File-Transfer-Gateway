@@ -1,6 +1,8 @@
 package com.securetransfer.SFTG.service;
 
 import com.securetransfer.SFTG.dto.AuthRequest;
+import com.securetransfer.SFTG.exception.AccountLockedException;
+import com.securetransfer.SFTG.exception.ForbiddenException;
 import com.securetransfer.SFTG.model.UserActivityLog;
 import com.securetransfer.SFTG.model.User;
 import com.securetransfer.SFTG.repository.UserActivityLogRepository;
@@ -11,15 +13,24 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+
+import java.time.Duration;
 import java.time.Instant;
 
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class AuthService {
+
+    // Same shape as UserService's OTP attempt limit — this is the
+    // per-account half of "per-IP AND per-account" for login. The
+    // per-IP half already exists in RateLimitingFilter.
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
+    private static final Duration LOGIN_LOCKOUT_DURATION = Duration.ofMinutes(15);
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
@@ -34,20 +45,48 @@ public class AuthService {
      */
     public String login(AuthRequest request, HttpServletRequest httpRequest) {
 
+        // "Not found" is deliberately the SAME exception, status, and
+        // message as a wrong password below — an attacker probing emails
+        // directly against the API must not be able to tell the two apart.
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new BadCredentialsException("Invalid email or password"));
 
-        if (!user.isEmailVerified()) {
-            throw new RuntimeException("Email not verified. Please verify your email first.");
+        // Checked BEFORE attempting credentials: a correct password doesn't
+        // lift an active lock early, and we avoid spending a real auth
+        // check on an account we're rejecting regardless of the outcome.
+        if (user.getAccountLockedUntil() != null
+                && Instant.now().isBefore(user.getAccountLockedUntil())) {
+            throw new AccountLockedException(
+                    "Account temporarily locked due to repeated failed login attempts. " +
+                            "Please try again later.");
         }
 
-        // Spring Security validates credentials — throws BadCredentialsException if wrong
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+        try {
+            // Spring Security validates credentials — throws BadCredentialsException if wrong
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            request.getEmail(),
+                            request.getPassword()
+                    )
+            );
+        } catch (BadCredentialsException ex) {
+            registerFailedLoginAttempt(user);
+            throw ex; // still maps to 401 — unless this attempt just tripped the lock above
+        }
+
+        // Successful login clears any accumulated failed attempts.
+        if (user.getFailedLoginAttempts() != 0 || user.getAccountLockedUntil() != null) {
+            user.setFailedLoginAttempts(0);
+            user.setAccountLockedUntil(null);
+            userRepository.save(user);
+        }
+
+        // Only reachable with a CORRECT password now — an attacker without
+        // the real password can no longer use this response to learn
+        // whether an account exists and is simply unverified.
+        if (!user.isEmailVerified()) {
+            throw new ForbiddenException("Email not verified. Please verify your email first.");
+        }
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
 
@@ -68,6 +107,21 @@ public class AuthService {
         log.info("[AUTH] Login successful for user: {} from IP: {}", request.getEmail(), ipAddress);
 
         return jwtTokenUtil.generateToken(userDetails);
+    }
+
+    private void registerFailedLoginAttempt(User user) {
+        int attempts = user.getFailedLoginAttempts() + 1;
+        user.setFailedLoginAttempts(attempts);
+
+        if (attempts >= MAX_FAILED_LOGIN_ATTEMPTS) {
+            user.setAccountLockedUntil(Instant.now().plus(LOGIN_LOCKOUT_DURATION));
+            user.setFailedLoginAttempts(0);
+            userRepository.save(user);
+            throw new AccountLockedException(
+                    "Too many failed login attempts. Account locked for 15 minutes.");
+        }
+
+        userRepository.save(user);
     }
 
     /**

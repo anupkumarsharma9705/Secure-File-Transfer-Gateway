@@ -1,17 +1,26 @@
-# Build stage
+# ---- Build stage ----
 FROM eclipse-temurin:21-jdk-alpine AS build
 WORKDIR /app
-# Install Maven, bash, git
 RUN apk add --no-cache maven bash git
-# Copy pom and source code
 COPY pom.xml .
 COPY src ./src
-# Build JAR
 RUN mvn clean package -DskipTests
-# Runtime stage
-FROM eclipse-temurin:21-jdk-alpine
+
+# ---- Runtime stage (non-root) ----
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-RUN mkdir -p /app/uploads
-COPY --from=build /app/target/*.jar app.jar
+
+RUN addgroup -g 1000 -S appgroup && \
+    adduser -u 1000 -S appuser -G appgroup
+
+RUN mkdir -p /app/uploads && chown -R appuser:appgroup /app
+
+COPY --from=build --chown=appuser:appgroup /app/target/*.jar app.jar
+
+USER appuser
 EXPOSE 8000
-CMD ["java", "-jar", "app.jar"]
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD wget -qO- http://localhost:8000/actuator/health/liveness || exit 1
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

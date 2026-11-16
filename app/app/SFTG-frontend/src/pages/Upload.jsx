@@ -48,7 +48,7 @@ export default function Upload() {
       <Typography variant="h5" fontWeight={700} fontFamily="'DM Sans', sans-serif" color="#0A0F1E" mb={3}>
         Upload File
       </Typography>
-      {/* ClamAV Notice for Recruiters */}
+      {/* Virus scanning notice */}
       <Box sx={{
         mb: 2, p: 2,
         border: "1px solid #F59E0B",
@@ -61,13 +61,12 @@ export default function Upload() {
         <Typography sx={{ fontSize: "1.2rem" }}>⚠️</Typography>
         <Box>
           <Typography variant="body2" fontWeight={700} color="#B45309">
-            Virus Scanning Disabled on Free Tier
+            Virus Scanning Needs an API Key
           </Typography>
           <Typography variant="caption" color="text.secondary" display="block" mt={0.3}>
-            ClamAV requires ~1GB RAM which exceeds free hosting limits.
-            The integration is fully implemented in the backend code —
-            it runs correctly in local Docker environment.
-            For a complete demo with live virus scanning, contact me directly.
+            Uploads are scanned through the VirusTotal API. Scanning is skipped
+            until a VIRUSTOTAL_API_KEY is configured, and outages never block
+            uploads — only a confirmed malicious verdict does.
           </Typography>
         </Box>
       </Box>

@@ -3,6 +3,7 @@ package com.securetransfer.SFTG.service;
 
 import com.securetransfer.SFTG.dto.OtpRequest;
 import com.securetransfer.SFTG.dto.RegisterRequest;
+import com.securetransfer.SFTG.exception.AccountLockedException;
 import com.securetransfer.SFTG.model.Role;
 import com.securetransfer.SFTG.model.User;
 import com.securetransfer.SFTG.repository.UserRepository;
@@ -16,6 +17,16 @@ import java.util.Set;
 
 @Service
 public class UserService {
+
+    // Mirrors AuthService's MAX_FAILED_LOGIN_ATTEMPTS pattern, applied to
+    // the endpoint that actually needed it: an OTP is only 6 digits
+    // (900,000 combinations) and lives for 5 minutes — with zero attempt
+    // limiting that window is realistically brute-forceable. Once attempts
+    // are exhausted we invalidate the code outright rather than time-locking
+    // the account, since the OTP already expires on its own — the honest
+    // next step for the user is "request a new code," not "wait it out."
+    private static final int MAX_OTP_ATTEMPTS = 5;
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Autowired
     private UserRepository userRepository;
@@ -35,7 +46,7 @@ public class UserService {
         }
 
         // Generate OTP
-        String otp = String.valueOf(100000 + new SecureRandom().nextInt(900000));
+        String otp = String.valueOf(100000 + SECURE_RANDOM.nextInt(900000));
         long expiryTime = System.currentTimeMillis() + 5 * 60 * 1000;
 
         // CASE 2: Email exists but NOT verified → resend OTP
@@ -43,6 +54,7 @@ public class UserService {
 
             user.setOtp(otp);
             user.setOtpExpiryTime(expiryTime);
+            user.setOtpAttempts(0); // fresh code gets a fresh attempt budget
             userRepository.save(user);
 
             emailService.sendOtp(user.getEmail(), otp);
@@ -75,6 +87,7 @@ public class UserService {
         }
 
         if (!request.getOtp().equals(user.getOtp())) {
+            registerFailedOtpAttempt(user);
             throw new RuntimeException("Invalid OTP");
         }
 
@@ -85,6 +98,26 @@ public class UserService {
         user.setEmailVerified(true);
         user.setOtp(null);
         user.setOtpExpiryTime(null);
+        user.setOtpAttempts(0);
+        userRepository.save(user);
+    }
+
+    private void registerFailedOtpAttempt(User user) {
+        int attempts = user.getOtpAttempts() + 1;
+        user.setOtpAttempts(attempts);
+
+        if (attempts >= MAX_OTP_ATTEMPTS) {
+                // Burn the code rather than lock the account — there's nothing
+            // left worth protecting by waiting, since this OTP can never
+            // succeed again either way.
+            user.setOtp(null);
+            user.setOtpExpiryTime(null);
+            user.setOtpAttempts(0);
+            userRepository.save(user);
+            throw new AccountLockedException(
+                    "Too many incorrect codes. Please request a new one.");
+        }
+
         userRepository.save(user);
     }
 }
