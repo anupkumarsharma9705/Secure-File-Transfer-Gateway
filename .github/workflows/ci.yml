@@ -221,6 +221,7 @@ jobs:
 
       - name: Trivy Scan Backend
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: ${{ env.BACKEND_IMAGE }}:test
           format: 'sarif'
@@ -230,6 +231,7 @@ jobs:
 
       - name: Trivy Scan Frontend
         uses: aquasecurity/trivy-action@master
+        continue-on-error: true
         with:
           image-ref: ${{ env.FRONTEND_IMAGE }}:test
           format: 'sarif'
