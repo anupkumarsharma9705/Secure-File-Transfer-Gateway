@@ -294,8 +294,8 @@ jobs:
           timeout 180 bash -c 'until docker compose ps backend | grep -q healthy; do echo "Waiting for backend healthy..."; sleep 5; done'
           echo "=== Waiting for frontend health ==="
           timeout 60 bash -c 'until docker compose ps frontend | grep -q healthy; do echo "Waiting for frontend healthy..."; sleep 3; done'
-          echo "=== Waiting for backend readiness (DB connected) ==="
-          timeout 180 bash -c 'until curl -fsS http://localhost:8000/api/stats/health | grep -q OK; do echo "Waiting for backend readiness..."; sleep 3; done'
+          echo "=== Waiting for backend readiness (actuator health/readiness - checks DB) ==="
+          timeout 180 bash -c 'until curl -fsS http://localhost:8000/actuator/health/readiness | jq -e ".status == \"UP\"" >/dev/null; do echo "Waiting for backend readiness..."; sleep 3; done'
           echo "=== Waiting for frontend ==="
           timeout 60 bash -c 'until curl -fsS http://localhost | grep -q "<!DOCTYPE html>"; do echo "Waiting for frontend..."; sleep 3; done'
           echo "=== Checking container health status ==="

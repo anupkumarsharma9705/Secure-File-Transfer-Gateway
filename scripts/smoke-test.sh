@@ -80,9 +80,9 @@ check "8. Security headers on frontend (X-Frame-Options)" \
 check "9. Security headers on frontend (nosniff)" \
     "curl -fsS -I $FRONTEND_URL | grep -qi 'x-content-type-options'"
 
-# 10. Database connectivity (via health)
-check "10. Database connectivity (health endpoint implies DB up)" \
-    "curl -fsS $API_URL/stats/health | grep -q OK"
+# 10. Database connectivity (via actuator readiness)
+check "10. Database connectivity (actuator readiness implies DB up)" \
+    "curl -fsS $API_URL/actuator/health/readiness | jq -e '.status == \"UP\"' >/dev/null"
 
 # 11. Backend container healthy (virus scanning is off-box via VirusTotal,
 #     so there is no local scanner container to probe)
