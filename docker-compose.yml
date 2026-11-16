@@ -41,7 +41,7 @@ services:
     networks:
       - sftg-network
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8000/actuator/health/liveness"]
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/actuator/health/liveness"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -68,7 +68,7 @@ services:
     networks:
       - sftg-network
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost/"]
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
       interval: 30s
       timeout: 10s
       retries: 3
