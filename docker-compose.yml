@@ -41,11 +41,11 @@ services:
     networks:
       - sftg-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/actuator/health/readiness >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/actuator/health/liveness >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 90s
+      retries: 3
+      start_period: 60s
 
   frontend:
     build:
