@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+  security-events: write  # Required for SARIF upload to Code Scanning
+
 env:
   REGISTRY: docker.io
   BACKEND_IMAGE: ${{ github.repository_owner }}/sftg-backend
@@ -240,14 +244,14 @@ jobs:
           exit-code: '1'
 
       - name: Upload Trivy Results
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-backend.sarif
           category: backend
 
       - name: Upload Trivy Results Frontend
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: trivy-frontend.sarif
