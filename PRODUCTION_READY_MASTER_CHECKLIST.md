@@ -465,7 +465,7 @@ public class CorrelationIdFilter implements Filter {
 | 4.1 | **Unit tests** (JUnit 5 + Mockito) | 🔴 | BE | ≥ 80% line coverage, ≥ 80 tests | ☐ |
 | 4.2 | **Contract tests** (Pact consumer + provider) | 🔴 | BE | ≥ 5 pacts | ☐ |
 | 4.3 | **Integration tests** (Testcontainers: MySQL) | 🔴 | BE | ≥ 10 tests | ☐ |
-| 4.4 | **E2E Smoke tests** (11 assertions post `docker compose up`) | 🔴 | DO | 11 assertions | ☐ |
+| 4.4 | **E2E Smoke tests** (12 assertions post `docker compose up`) | 🔴 | DO | 12 assertions | ☐ |
 | 4.5 | **Load tests** (k6: 3 scenarios + RESULTS.md) | 🟠 | DO | 3 scenarios | ☐ |
 
 ### Unit Test Priority Areas (Backend)
@@ -531,7 +531,7 @@ REG_RESP=$(curl -fsS -X POST $BASE_URL/api/auth/register \
 check "Register returns 200" "echo $REG_RESP | grep -q 'OTP sent'"
 
 # 4. Verify OTP (mock - would need test OTP)
-# ... continue for all 11 assertions
+# ... continue for all 12 assertions
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
@@ -604,7 +604,7 @@ export default function () {
 | 6.1 | Build & Unit Test | 🔴 | DO | `.github/workflows/ci.yml` | ☐ |
 | 6.2 | Contract Tests (Pact) | 🔴 | DO | `.github/workflows/ci.yml` | ☐ |
 | 6.3 | Integration Tests (Testcontainers) | 🔴 | DO | `.github/workflows/ci.yml` | ☐ |
-| 6.4 | Compose Smoke Test (11 assertions) | 🔴 | DO | `.github/workflows/ci.yml` | ☐ |
+| 6.4 | Compose Smoke Test (12 assertions) | 🔴 | DO | `.github/workflows/ci.yml` | ☐ |
 | 6.5 | Load Test (scheduled + on release) | 🟠 | DO | `.github/workflows/load.yml` | ☐ |
 | 6.6 | Deploy Preview (PR) | 🟠 | DO | `.github/workflows/preview.yml` | ☐ |
 | 6.7 | Deploy Production (Tag) | 🟠 | DO | `.github/workflows/deploy.yml` | ☐ |

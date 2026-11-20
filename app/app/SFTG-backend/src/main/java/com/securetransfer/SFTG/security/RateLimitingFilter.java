@@ -1,5 +1,6 @@
 package com.securetransfer.SFTG.security;
 
+import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,6 +10,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Per-IP throttling for the endpoints that are actually sensitive to abuse.
@@ -45,14 +47,30 @@ public class RateLimitingFilter extends OncePerRequestFilter {
         RateLimit limit = RateLimit.forPath(request.getRequestURI());
         String key = limit.name() + ":ip:" + request.getRemoteAddr();
 
-        if (rateLimitingService.tryConsume(key, limit.capacity(), limit.window())) {
+        ConsumptionProbe probe = rateLimitingService.tryConsumeAndReturnRemaining(
+                key, limit.capacity(), limit.window());
+
+        // Standard rate-limit headers so clients can back off before hitting 429.
+        response.setHeader("X-RateLimit-Limit", String.valueOf(limit.capacity()));
+        response.setHeader("X-RateLimit-Remaining",
+                String.valueOf(Math.max(0, probe.getRemainingTokens())));
+        response.setHeader("X-RateLimit-Reset",
+                String.valueOf(resetSeconds(probe.getNanosToWaitForReset())));
+
+        if (probe.isConsumed()) {
             filterChain.doFilter(request, response);
         } else {
+            response.setHeader("Retry-After",
+                    String.valueOf(resetSeconds(probe.getNanosToWaitForRefill())));
             response.setStatus(429);
             response.setContentType("application/json");
             response.getWriter().write(
                     "{\"error\":\"Too many requests\",\"message\":\"Please try again later.\"}");
         }
+    }
+
+    private long resetSeconds(long nanos) {
+        return Math.max(1, TimeUnit.NANOSECONDS.toSeconds(nanos));
     }
 
     @Override

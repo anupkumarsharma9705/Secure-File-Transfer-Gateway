@@ -27,7 +27,8 @@ services:
       CORS_ALLOWED_ORIGIN: ${CORS_ALLOWED_ORIGIN:-http://localhost}
       FILE_UPLOAD_DIR: /app/uploads
     ports:
-      - "8000:8000"
+      # Bound to localhost only; the public entry point is Caddy (tls profile).
+      - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
     volumes:
       - uploads_data:/app/uploads
     deploy:
@@ -46,20 +47,29 @@ services:
       timeout: 10s
       retries: 3
       start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   frontend:
     build:
       context: ./app/app/SFTG-frontend
       dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000/api}
+        # /api = same-origin: nginx proxies /api/ to the backend.
+        # Set an absolute URL only when frontend and backend are on different hosts.
+        VITE_API_URL: ${VITE_API_URL:-/api}
     image: anupkumar9705/sftg-frontend:latest
     container_name: sftg_frontend
     depends_on:
       - backend
     ports:
-      # Host 80 -> unprivileged nginx (container 8080)
-      - "80:8080"
+      # Host 80 -> unprivileged nginx (container 8080).
+      # When the `tls` profile is active, set FRONTEND_PORT=8081 so Caddy can
+      # own host ports 80/443.
+      - "127.0.0.1:${FRONTEND_PORT:-80}:8080"
     deploy:
       resources:
         limits:
@@ -74,6 +84,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   mysql:
     image: mysql:8.0
@@ -84,7 +99,8 @@ services:
       MYSQL_USER: ${DB_USERNAME:?DB_USERNAME required}
       MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required}
     ports:
-      - "3306:3306"
+      # Bound to localhost only — never expose MySQL to the internet.
+      - "127.0.0.1:${MYSQL_PORT:-3306}:3306"
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -100,10 +116,54 @@ services:
     restart: unless-stopped
     networks:
       - sftg-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ------------------------------------------------------------------
+  # Optional public TLS entry point.
+  # Start with:  docker compose --profile tls up -d --build --wait
+  # Set DOMAIN=files.example.com (DNS A record -> this server) and
+  # FRONTEND_PORT=8081 so Caddy can bind host ports 80/443.
+  # ------------------------------------------------------------------
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: sftg_caddy
+    profiles: ["tls"]
+    depends_on:
+      frontend:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 128M
+    restart: unless-stopped
+    networks:
+      - sftg-network
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql_data:
   uploads_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   sftg-network:

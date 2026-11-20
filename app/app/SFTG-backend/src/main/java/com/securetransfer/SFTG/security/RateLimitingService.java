@@ -21,8 +21,18 @@ public class RateLimitingService {
      * a parameter, not a single hardcoded default shared by everyone.
      */
     public boolean tryConsume(String key, int capacity, Duration refillPeriod) {
+        return tryConsumeAndReturnRemaining(key, capacity, refillPeriod).isConsumed();
+    }
+
+    /**
+     * Consumes one token and returns the full probe (consumed flag, remaining
+     * tokens, refill timing) so HTTP callers can emit standard
+     * X-RateLimit-* / Retry-After headers.
+     */
+    public ConsumptionProbe tryConsumeAndReturnRemaining(
+            String key, int capacity, Duration refillPeriod) {
         Bucket bucket = buckets.computeIfAbsent(key, k -> newBucket(capacity, refillPeriod));
-        return bucket.tryConsume(1);
+        return bucket.tryConsumeAndReturnRemaining(1);
     }
 
     private Bucket newBucket(int capacity, Duration refillPeriod) {

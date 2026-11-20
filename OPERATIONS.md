@@ -4,9 +4,10 @@
 
 | Service | Port | Health probe |
 |---------|------|--------------|
-| backend (Spring Boot) | 8000 | `GET /actuator/health/liveness` |
-| frontend (nginx, unprivileged UID 101) | 80 → container 8080 | `GET /` |
-| mysql | 3306 | `mysqladmin ping` |
+| caddy (`tls` profile) | 80 / 443 | `GET /` (TLS) |
+| frontend (nginx, unprivileged UID 101) | host 80 → container 8080 | `GET /` |
+| backend (Spring Boot) | 8000 (localhost only) | `GET /actuator/health/liveness` |
+| mysql | 3306 (localhost only) | `mysqladmin ping` |
 
 Virus scanning is off-box (VirusTotal API), so there is no local scanner
 container to probe. Readiness reports `virustotal: configured` or
@@ -22,13 +23,19 @@ docker compose down                  # stop (volumes preserved)
 docker compose down -v               # stop + delete data (destructive)
 ```
 
+For the public HTTPS stack (Caddy on 80/443):
+
+```bash
+docker compose --profile tls up -d --build --wait
+```
+
 ## Health Verification
 
 ```bash
 curl -fsS http://localhost:8000/actuator/health/liveness
 curl -fsS http://localhost:8000/actuator/health/readiness
 curl -fsS http://localhost:8000/actuator/prometheus | head
-./scripts/smoke-test.sh              # 11 assertions
+./scripts/smoke-test.sh              # 12 assertions
 ```
 
 ## Failure Matrix

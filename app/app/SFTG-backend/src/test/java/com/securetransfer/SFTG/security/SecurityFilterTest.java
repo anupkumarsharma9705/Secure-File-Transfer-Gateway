@@ -4,6 +4,7 @@ import com.securetransfer.SFTG.model.Role;
 import com.securetransfer.SFTG.model.User;
 import com.securetransfer.SFTG.repository.UserRepository;
 import com.securetransfer.SFTG.service.TokenBlacklistService;
+import io.github.bucket4j.ConsumptionProbe;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import jakarta.servlet.FilterChain;
@@ -19,6 +20,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -175,7 +177,8 @@ class SecurityFilterTest {
     @Test
     void rateLimitAllowsRequestUnderCapacity() throws Exception {
         RateLimitingService service = mock(RateLimitingService.class);
-        when(service.tryConsume(anyString(), anyInt(), any())).thenReturn(true);
+        when(service.tryConsumeAndReturnRemaining(anyString(), anyInt(), any()))
+                .thenReturn(ConsumptionProbe.consumed(14, TimeUnit.MINUTES.toNanos(15)));
         RateLimitingFilter filter = new RateLimitingFilter(service);
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
@@ -185,12 +188,17 @@ class SecurityFilterTest {
         filter.doFilter(request, response, chain);
 
         verify(chain).doFilter(request, response);
+        assertEquals("15", response.getHeader("X-RateLimit-Limit"));
+        assertEquals("14", response.getHeader("X-RateLimit-Remaining"));
+        assertEquals("900", response.getHeader("X-RateLimit-Reset"));
     }
 
     @Test
     void rateLimitReturns429WhenExhausted() throws Exception {
         RateLimitingService service = mock(RateLimitingService.class);
-        when(service.tryConsume(anyString(), anyInt(), any())).thenReturn(false);
+        when(service.tryConsumeAndReturnRemaining(anyString(), anyInt(), any()))
+                .thenReturn(ConsumptionProbe.rejected(
+                        0, TimeUnit.SECONDS.toNanos(30), TimeUnit.MINUTES.toNanos(15)));
         RateLimitingFilter filter = new RateLimitingFilter(service);
 
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
@@ -201,6 +209,10 @@ class SecurityFilterTest {
 
         assertEquals(429, response.getStatus());
         assertTrue(response.getContentAsString().contains("Too many requests"));
+        assertEquals("15", response.getHeader("X-RateLimit-Limit"));
+        assertEquals("0", response.getHeader("X-RateLimit-Remaining"));
+        assertEquals("900", response.getHeader("X-RateLimit-Reset"));
+        assertEquals("30", response.getHeader("Retry-After"));
         verify(chain, never()).doFilter(any(), any());
     }
 
@@ -221,7 +233,7 @@ class SecurityFilterTest {
         filter.doFilter(other, otherResponse, otherChain);
         verify(otherChain).doFilter(other, otherResponse);
 
-        verify(service, never()).tryConsume(anyString(), anyInt(), any());
+        verify(service, never()).tryConsumeAndReturnRemaining(anyString(), anyInt(), any());
     }
 
     // ---------------- UserDetailsServiceImpl ----------------

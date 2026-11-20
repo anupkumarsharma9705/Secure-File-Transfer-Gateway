@@ -20,6 +20,9 @@ versioning follows [SemVer](https://semver.org/).
 - Dependabot (Maven, npm, Actions, Docker)
 - Non-root containers, resource limits, restart policies
 - nginx security headers (CSP, Referrer-Policy, Permissions-Policy)
+- Same-origin `/api` reverse proxy so the frontend image is domain-independent
+- Optional Caddy `tls` profile (automatic HTTPS) and `DEPLOYMENT.md` runbook
+- `.dockerignore` files and per-service log rotation (3 × 10 MB)
 
 ### Changed
 - Secrets removed from tracked configuration; all values sourced from environment
@@ -33,6 +36,13 @@ versioning follows [SemVer](https://semver.org/).
 - `/api/files/download/{filename}` path variable now explicitly bound, fixing 500s on download
 - Removed debug-only `TestController` and an unused duplicate `PublicLinkModal`
 - Unhandled exceptions are logged instead of printed to stdout
+- Frontend container ran as non-root on privileged port 80 and never became healthy;
+  it now uses `nginxinc/nginx-unprivileged` on 8080 (host 80 → container 8080)
+- Compose smoke test aborted under `set -e` on the first passing assertion
+  (`((PASS++))`); counters now use `$((...))`
+- Actuator readiness checks used the wrong `/api/actuator/...` path; corrected
 
 ### Security
-- Rotated and purged previously committed credentials (history rewrite documented)
+- Secrets removed from tracked configuration. Previously committed credentials
+  must still be rotated and purged from git history by an operator; the exact
+  steps are tracked in `PRODUCTION_READY_MASTER_CHECKLIST.md`.

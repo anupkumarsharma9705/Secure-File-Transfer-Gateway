@@ -1,13 +1,13 @@
 #!/bin/bash
-# Smoke Test — 11 Assertions Post `docker compose up`
+# Smoke Test — 12 Assertions Post `docker compose up`
 # Run after: docker compose up --build -d --wait
 # Exit code: 0 = all pass, 1 = any fail
 
 set -euo pipefail
 
-BASE_URL="${BASE_URL:-http://localhost}"
+BASE_URL="${BASE_URL:-http://127.0.0.1}"
 API_URL="${BASE_URL}:8000/api"
-FRONTEND_URL="${BASE_URL}"
+FRONTEND_URL="${FRONTEND_URL:-$BASE_URL}"
 
 PASS=0
 FAIL=0
@@ -39,7 +39,7 @@ check_json() {
     fi
 }
 
-echo "=== Smoke Tests (11 Assertions) ==="
+echo "=== Smoke Tests (12 Assertions) ==="
 echo "API: $API_URL"
 echo "Frontend: $FRONTEND_URL"
 echo ""
@@ -58,7 +58,7 @@ check "3. OpenAPI JSON spec available" \
 
 # 4. Frontend serves HTML
 check "4. Frontend serves index.html" \
-    "curl -fsS $FRONTEND_URL | grep -q '<!DOCTYPE html>'"
+    "curl -fsS $FRONTEND_URL | grep -qi '<!doctype html>'"
 
 # 5. Frontend assets load (CSS/JS)
 check "5. Frontend assets load (Vite manifest)" \
@@ -68,9 +68,9 @@ check "5. Frontend assets load (Vite manifest)" \
 check "6. CORS preflight works" \
     "curl -fsS -X OPTIONS -H 'Origin: http://localhost:5173' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: Content-Type' $API_URL/auth/register -I | grep -qi 'access-control-allow-origin'"
 
-# 7. Rate limiting headers present
+# 7. Rate limiting headers present (login is rate-limited)
 check "7. Rate limiting headers on auth endpoint" \
-    "curl -fsS -I $API_URL/auth/login | grep -qi 'x-ratelimit'"
+    "curl -sS -I $API_URL/auth/login | grep -qi 'x-ratelimit'"
 
 # 8. Security headers on frontend
 check "8. Security headers on frontend (X-Frame-Options)" \
@@ -80,14 +80,18 @@ check "8. Security headers on frontend (X-Frame-Options)" \
 check "9. Security headers on frontend (nosniff)" \
     "curl -fsS -I $FRONTEND_URL | grep -qi 'x-content-type-options'"
 
-# 10. Database connectivity (via actuator readiness)
+# 10. Database connectivity (via actuator readiness — note: actuator is NOT under /api)
 check "10. Database connectivity (actuator readiness implies DB up)" \
-    "curl -fsS $API_URL/actuator/health/readiness | jq -e '.status == \"UP\"' >/dev/null"
+    "curl -fsS $BASE_URL:8000/actuator/health/readiness | jq -e '.status == \"UP\"' >/dev/null"
 
 # 11. Backend container healthy (virus scanning is off-box via VirusTotal,
 #     so there is no local scanner container to probe)
 check "11. Backend container healthy" \
     "docker compose ps backend | grep -q healthy"
+
+# 12. Same-origin API proxy (this is the path the browser actually uses)
+check "12. Frontend proxies /api to backend" \
+    "curl -fsS $FRONTEND_URL/api/stats/health | grep -q OK"
 
 echo ""
 echo "=== Results ==="
@@ -96,7 +100,7 @@ echo "Failed: $FAIL"
 echo ""
 
 if [ $FAIL -eq 0 ]; then
-    echo "🎉 ALL 11 SMOKE TESTS PASSED"
+    echo "🎉 ALL 12 SMOKE TESTS PASSED"
     exit 0
 else
     echo "⚠️  $FAIL SMOKE TESTS FAILED"

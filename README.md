@@ -254,13 +254,13 @@ Docker + Docker Compose
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/anupkumar9705/SFTG.git
-cd SFTG
+git clone https://github.com/anupkumarsharma9705/Secure-File-Transfer-Gateway.git
+cd Secure-File-Transfer-Gateway
 ```
 
 **2. Start dependencies (MySQL)**
 ```bash
-docker-compose up mysql_db
+docker compose up -d mysql
 ```
 Virus scanning needs no local service: it calls the VirusTotal API. Leave
 `VIRUSTOTAL_API_KEY` unset to skip scanning during local development.
@@ -297,13 +297,13 @@ cors.allowed-origin=http://localhost:5173
 
 **4. Start backend**
 ```bash
-cd app/backendJava/SFTG-backend
+cd app/app/SFTG-backend
 mvn spring-boot:run
 ```
 
 **5. Start frontend**
 ```bash
-cd app/backendJava/SFTG-frontend
+cd app/app/SFTG-frontend
 npm install
 npm run dev
 ```
@@ -316,11 +316,13 @@ npm run dev
 ### Option B — Full Docker
 
 ```bash
-docker-compose up --build
+cp .env.example .env      # fill in DB/JWT values
+docker compose up --build -d --wait
 ```
 
 - Frontend: http://localhost
-- Backend: http://localhost:8000
+- API (through the nginx proxy): http://localhost/api
+- Backend direct (localhost only): http://localhost:8000
 
 ---
 
@@ -352,63 +354,61 @@ docker-compose up --build
 ### Frontend (Build-time)
 | Variable | Description | Example |
 |---|---|---|
-| `VITE_API_URL` | Backend API base URL | `https://sftg-backend.onrender.com/api` |
+| `VITE_API_URL` | API base URL baked into the frontend | `/api` (nginx proxy) |
 
 ---
 
 ## 🐳 Docker Deployment
 
-### Build Images
+### Full stack (same-origin API)
 ```bash
-# Backend
-docker build -t yourusername/sftg-backend:latest \
-  ./app/backendJava/SFTG-backend
-
-# Frontend
-docker build \
-  --build-arg VITE_API_URL=https://your-backend.onrender.com/api \
-  -t yourusername/sftg-frontend:latest \
-  ./app/backendJava/SFTG-frontend
+cp .env.example .env      # fill in DB/JWT/etc.
+docker compose up --build -d --wait
 ```
+- Frontend: http://localhost
+- API through the nginx proxy: http://localhost/api
+- Backend direct (localhost only): http://localhost:8000
+- MySQL (localhost only): 127.0.0.1:3306
 
-### Push to Docker Hub
+The frontend is built with `VITE_API_URL=/api`; nginx proxies `/api/` to the
+backend container. No hostname is baked into the bundle, so the same image
+works on any domain.
+
+### Build and push images manually
 ```bash
+docker build -t yourusername/sftg-backend:latest ./app/app/SFTG-backend
+docker build --build-arg VITE_API_URL=/api \
+  -t yourusername/sftg-frontend:latest ./app/app/SFTG-frontend
+
 docker push yourusername/sftg-backend:latest
 docker push yourusername/sftg-frontend:latest
 ```
 
-### Local Full Stack
-```bash
-docker-compose up --build
-```
-
 ---
 
-## ☁️ Cloud Deployment
+## ☁️ Production Deployment
 
-### Current Setup
+The recommended target is a single Linux VM (2 vCPU / 2 GB RAM) running this
+compose stack behind Caddy for automatic HTTPS. Step-by-step instructions,
+backup commands, and the go-live checklist are in **[DEPLOYMENT.md](DEPLOYMENT.md)**.
+
+```bash
+# on the server
+cp .env.example .env   # set DOMAIN, FRONTEND_PORT=8081, strong secrets
+docker compose --profile tls up -d --build --wait
+```
+
 | Service | Platform | Notes |
 |---|---|---|
-| Backend | Render (free) | Cold start ~90s, keep-alive via UptimeRobot |
-| Frontend | Railway (free) | Always warm, instant load |
-| Database | Railway MySQL | 1GB free monthly |
-| File Storage | Cloudinary | 25GB free tier |
+| Frontend + backend + MySQL | Docker Compose on one VM | ~2 GB RAM; no local antivirus |
+| TLS | Caddy (`tls` profile) | Automatic Let's Encrypt certificates |
+| File storage | Cloudinary | 25 GB free tier |
 | Email | Brevo | 300 emails/day free |
-| Virus Scan | VirusTotal | 500 requests/day free |
-| Monitoring | UptimeRobot | 5-minute pings |
+| Virus scan | VirusTotal API | 500 requests/day free; non-blocking |
 
-### Deploy Backend (Render)
-1. Create Web Service → Deploy existing Docker image
-2. Image: `docker.io/yourusername/sftg-backend:latest`
-3. Port: `8000`
-4. Add all environment variables
-5. Deploy
-
-### Deploy Frontend (Railway)
-1. Add Service → Docker Image
-2. Image: `docker.io/yourusername/sftg-frontend:latest`
-3. Networking → Generate Domain
-4. Port: `80`
+If you deploy the frontend and backend to separate managed platforms (Render,
+Railway, etc.), build the frontend with an absolute `VITE_API_URL` pointing at
+the backend's public URL, and set `CORS_ALLOWED_ORIGIN` to the frontend origin.
 
 ---
 
@@ -417,31 +417,32 @@ docker-compose up --build
 ```
 SFTG/
 ├── app/
-│   ├── backendJava/
-│   │   ├── SFTG-backend/
-│   │   │   ├── src/main/java/com/securetransfer/SFTG/
-│   │   │   │   ├── config/          # CORS, Cloudinary, AppConfig
-│   │   │   │   ├── controller/      # Auth, File, Share, Account, Stats
-│   │   │   │   ├── dto/             # Request/Response objects
-│   │   │   │   ├── exception/       # Custom exceptions + global handler
-│   │   │   │   ├── model/           # JPA entities
-│   │   │   │   ├── repository/      # JPA repositories
-│   │   │   │   ├── security/        # JWT filter, SecurityConfig, rate limiting
-│   │   │   │   └── service/         # Business logic layer
-│   │   │   ├── Dockerfile
-│   │   │   └── pom.xml
-│   │   │
-│   │   └── SFTG-frontend/
-│   │       ├── src/
-│   │       │   ├── api/             # Axios instance with interceptors
-│   │       │   ├── components/      # Navbar, Layout, ProtectedRoute
-│   │       │   └── pages/           # Login, Register, Dashboard, Upload, etc.
-│   │       ├── public/
-│   │       │   └── _redirects       # Netlify/Railway React Router support
-│   │       ├── nginx.conf
-│   │       └── Dockerfile
-│   │
+│   └── app/
+│       ├── SFTG-backend/
+│       │   ├── src/main/java/com/securetransfer/SFTG/
+│       │   │   ├── config/          # CORS, Cloudinary, AppConfig
+│       │   │   ├── controller/      # Auth, File, Share, Account, Stats
+│       │   │   ├── dto/             # Request/Response objects
+│       │   │   ├── exception/       # Custom exceptions + global handler
+│       │   │   ├── model/           # JPA entities
+│       │   │   ├── repository/      # JPA repositories
+│       │   │   ├── security/        # JWT filter, SecurityConfig, rate limiting
+│       │   │   └── service/         # Business logic layer
+│       │   ├── Dockerfile
+│       │   └── pom.xml
+│       │
+│       └── SFTG-frontend/
+│           ├── src/
+│           │   ├── api/             # Axios instance with interceptors
+│           │   ├── components/      # Navbar, Layout, ProtectedRoute
+│           │   └── pages/           # Login, Register, Dashboard, Upload, etc.
+│           ├── nginx.conf           # SPA + same-origin /api proxy
+│           └── Dockerfile
+│
+├── deploy/
+│   └── Caddyfile                    # automatic HTTPS for production
 ├── docker-compose.yml
+├── DEPLOYMENT.md
 └── README.md
 ```
 

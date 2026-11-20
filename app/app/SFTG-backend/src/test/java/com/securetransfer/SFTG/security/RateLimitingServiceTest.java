@@ -40,6 +40,18 @@ class RateLimitingServiceTest {
     }
 
     @Test
+    void probeExposesRemainingTokens() {
+        RateLimitingService service = new RateLimitingService();
+        Duration window = Duration.ofMinutes(1);
+
+        var probe = service.tryConsumeAndReturnRemaining("probe:ip:1.2.3.4", 2, window);
+
+        assertTrue(probe.isConsumed());
+        assertEquals(1, probe.getRemainingTokens());
+        assertTrue(probe.getNanosToWaitForReset() > 0);
+    }
+
+    @Test
     void refillsAfterWindow() throws InterruptedException {
         RateLimitingService service = new RateLimitingService();
         Duration window = Duration.ofMillis(200);
