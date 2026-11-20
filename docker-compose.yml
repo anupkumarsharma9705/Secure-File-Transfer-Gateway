@@ -58,7 +58,8 @@ services:
     depends_on:
       - backend
     ports:
-      - "80:80"
+      # Host 80 -> unprivileged nginx (container 8080)
+      - "80:8080"
     deploy:
       resources:
         limits:
@@ -68,11 +69,11 @@ services:
     networks:
       - sftg-network
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 20s
+      start_period: 15s
 
   mysql:
     image: mysql:8.0

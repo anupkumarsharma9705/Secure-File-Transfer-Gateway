@@ -248,18 +248,12 @@ RUN npm install
 COPY . .
 RUN npm run build
 
-# Stage 2 — Serve with Nginx (non-root)
-FROM nginx:alpine
-# nginx user already exists (uid 101)
+# Stage 2 — Serve with Nginx (non-root, unprivileged image)
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# Fix permissions for non-root
-RUN chown -R nginx:nginx /usr/share/nginx/html && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chown -R nginx:nginx /var/log/nginx && \
-    chown -R nginx:nginx /etc/nginx/conf.d
 USER nginx
-EXPOSE 80
+EXPOSE 8080
 CMD ["nginx", "-g", "daemon off;"]
 ```
 

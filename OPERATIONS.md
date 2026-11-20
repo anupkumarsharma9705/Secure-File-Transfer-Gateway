@@ -5,7 +5,7 @@
 | Service | Port | Health probe |
 |---------|------|--------------|
 | backend (Spring Boot) | 8000 | `GET /actuator/health/liveness` |
-| frontend (nginx) | 80 | `GET /` |
+| frontend (nginx, unprivileged UID 101) | 80 → container 8080 | `GET /` |
 | mysql | 3306 | `mysqladmin ping` |
 
 Virus scanning is off-box (VirusTotal API), so there is no local scanner

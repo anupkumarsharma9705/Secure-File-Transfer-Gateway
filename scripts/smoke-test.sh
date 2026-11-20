@@ -18,10 +18,10 @@ check() {
     echo -n "Checking: $desc ... "
     if eval "$cmd" >/dev/null 2>&1; then
         echo "✅ PASS"
-        ((PASS++))
+        PASS=$((PASS + 1))
     else
         echo "❌ FAIL"
-        ((FAIL++))
+        FAIL=$((FAIL + 1))
     fi
 }
 
@@ -32,10 +32,10 @@ check_json() {
     echo -n "Checking: $desc ... "
     if curl -fsS "$url" | jq -e "$jq_filter" >/dev/null 2>&1; then
         echo "✅ PASS"
-        ((PASS++))
+        PASS=$((PASS + 1))
     else
         echo "❌ FAIL"
-        ((FAIL++))
+        FAIL=$((FAIL + 1))
     fi
 }
 
