@@ -69,14 +69,14 @@ jobs:
         run: echo "::warning::NVD_API_KEY secret not set — dependency CVE scan skipped. Add a free key from nvd.nist.gov."
 
       - name: Upload Dependency Check Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: dependency-check-report
           path: app/app/SFTG-backend/target/dependency-check-report.html
 
       - name: Upload JaCoCo Report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: jacoco-report
