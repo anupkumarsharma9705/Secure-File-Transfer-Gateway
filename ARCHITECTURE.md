@@ -15,7 +15,7 @@ Spring Boot 3.4 API (Java 21)
         ├── Controllers → Services → JPA repositories
         ├── MySQL 8 (users, files, shared_links, download_logs, audit, blacklist)
         ├── VirusTotal v3 API (SHA-256 lookup, upload only if unknown) — non-blocking scan
-        ├── Cloudinary (object storage)
+        ├── Local disk (uploads volume, configurable FILE_UPLOAD_DIR)
         └── Brevo (transactional OTP email)
 ```
 
@@ -27,7 +27,7 @@ Spring Boot 3.4 API (Java 21)
 | Service | Business rules, orchestration, transactions | `AuthService`, `FileService`, `FileShareService` |
 | Repository | Persistence via Spring Data JPA | `UserRepository`, `FileRepository` |
 | Security | JWT filter, blacklist, rate limiting, CORS | `JwtAuthenticationFilter`, `RateLimitingFilter` |
-| Scheduler | Expiry cleanup, blacklist cleanup, keep-alive | `FileCleanupScheduler` |
+| Scheduler | Expiry cleanup, blacklist cleanup | `FileCleanupScheduler` |
 | Observability | Correlation IDs, health probes, Prometheus | `CorrelationIdFilter`, `DependencyHealthIndicator` |
 
 ## Data Model

@@ -279,11 +279,6 @@ MAIL_USERNAME=your_brevo_smtp_user
 MAIL_PASSWORD=your_brevo_smtp_password
 BREVO_API_KEY=your_brevo_api_key
 
-# Cloudinary
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_API_KEY=your_api_key
-CLOUDINARY_API_SECRET=your_api_secret
-
 # VirusTotal
 VIRUSTOTAL_API_KEY=your_virustotal_api_key
 
@@ -293,8 +288,6 @@ CORS_ALLOWED_ORIGIN=http://localhost:5173
 # Frontend build
 VITE_API_URL=https://your-backend.onrender.com/api
 
-# App base URL (keep-alive)
-APP_BASE_URL=https://your-backend.onrender.com
 ```
 
 ---
@@ -355,11 +348,6 @@ APP_BASE_URL=https://your-backend.onrender.com
 <dependency>
     <groupId>org.testcontainers</groupId>
     <artifactId>mysql</artifactId>
-    <scope>test</scope>
-</dependency>
-<dependency>
-    <groupId>org.testcontainers</groupId>
-    <artifactId>localstack</artifactId> <!-- for S3/Cloudinary mock -->
     <scope>test</scope>
 </dependency>
 <dependency>
@@ -703,7 +691,6 @@ export default function () {
 | MAIL_PASSWORD | `application-dev.properties` | New Brevo SMTP key | ☐ |
 | BREVO_API_KEY | `application-dev.properties`, `application-prod.properties` | New API key | ☐ |
 | JWT_SECRET | `application-dev.properties`, `application-prod.properties` | `openssl rand -base64 64` | ☐ |
-| CLOUDINARY_API_SECRET | Not in repo (good) | N/A | ✅ |
 | VIRUSTOTAL_API_KEY | Not in repo (good) | N/A | ✅ |
 
 **After rotation:**

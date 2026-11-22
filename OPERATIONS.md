@@ -47,10 +47,9 @@ curl -fsS http://localhost:8000/actuator/prometheus | head
 | VirusTotal rate limit | Scan skipped, warning logged | metrics/log error rate | Continue (non-blocking) | Wait for quota window; lower `VIRUSTOTAL_UPLOAD_UNKNOWN` |
 | VirusTotal key missing | `virustotal: not configured` in readiness | readiness detail | Accept uploads; set `VIRUSTOTAL_API_KEY` | Restart backend with the key set |
 | Brevo down | Registration blocked (OTP not sent) | 5xx on register, email errors | Surface retry message | Retry; fall back to SMTP relay |
-| Cloudinary down | Upload fails after scan | 5xx on upload | Return 503 with retry hint | Restore credentials/service |
 | JWT secret rotated | All sessions invalid | mass 401s | Expected | Users log in again |
 | Disk full (uploads) | Upload 500, cleanup errors | disk metrics | Free space; cleanup scheduler drains expired files | Scale volume |
-| Backend cold start (Render) | 60–90 s first request | synthetic check | Frontend retries (3×, 5 s) | Keep-alive ping (`APP_BASE_URL`) |
+| Backend cold start (Render) | 60–90 s first request | synthetic check | Frontend retries (3×, 5 s) | External uptime check on `/` and `/api/stats/health` |
 | Deployment bad | Health checks fail | CI smoke + canary | Roll back previous image tag | Redeploy last green tag |
 
 ## Scheduled Jobs

@@ -1,6 +1,6 @@
 # 🔐 SFTG — Secure File Transfer Gateway
 
-A production-grade, full-stack secure file sharing platform built with **Java Spring Boot** and **React**. Designed with Fintech-level security standards including JWT authentication, token blacklisting, virus scanning, audit logging, and expiring share links.
+A full-stack secure file sharing platform built with **Java Spring Boot** and **React**. It combines JWT authentication with DB-backed token revocation, optional VirusTotal malware scanning, audit logging, and expiring share links.
 
 > **Swagger UI:** [https://sftg-backend.onrender.com/swagger-ui/index.html](https://sftg-backend.onrender.com/swagger-ui/index.html)
 
@@ -22,6 +22,7 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 - [Cloud Deployment](#-cloud-deployment)
 - [Project Structure](#-project-structure)
 - [Key Engineering Decisions](#-key-engineering-decisions)
+- [Portfolio & Resume Evidence](PORTFOLIO.md)
 - [Author](#-author)
 
 ---
@@ -32,7 +33,7 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 - 🔐 **JWT Authentication** with DB-backed token blacklisting (survives server restarts)
 - 📧 **Email OTP Verification** via Brevo API before account activation
 - 🔒 **BCrypt Password Hashing** with secure salting
-- 🛡️ **Rate Limiting** on public endpoints using Bucket4j token bucket algorithm
+- 🛡️ **Rate Limiting** on sensitive endpoints using Bucket4j token bucket algorithm
 - 🦠 **Virus Scanning** — VirusTotal v3 API (hash lookup, upload only unknown files; lightweight, no local scanner)
 - 🔍 **MIME Type Detection** via Apache Tika (content-based, not extension-based)
 - 🚫 **Executable File Blocking** — rejects .exe, .sh, .bat uploads
@@ -42,19 +43,25 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 - 📁 **Secure File Upload** with size validation (max 100MB)
 - ⏳ **Auto File Expiry** — files automatically deleted after 1 hour
 - 🗑️ **Scheduled Cleanup** — removes expired files and all associated data every 5 minutes
-- ☁️ **Cloud Storage** via Cloudinary — stateless, no local disk dependency
+- 💾 **Local Disk Storage** - configurable upload directory, persisted through the compose `uploads_data` volume
 
 ### Sharing
-- 🔗 **Expiring Share Links** — UUID tokens, expire in 1 hour
+- 🔗 **Expiring Share Links** — UUID tokens, expire in 1 hour; the recipient must be signed in
 - 📊 **Download Limits** — maximum 5 downloads per share link
-- 📋 **Download Audit** — tracks who downloaded, when, from which IP
+- 📋 **Download Audit** — records the downloader and timestamp for each share download
 - 📱 **QR Code Generation** for share links
 
 ### Monitoring & Audit
-- 📊 **Fintech-Style Audit Log** — every action logged with IP address and User-Agent
+- 📊 **Audit Log** — login/logout record IP address and User-Agent; file actions record actor and timestamp
 - 📈 **Global Statistics** — total users, uploads, downloads
 - 👤 **User Profile Dashboard** — complete activity history
-- 🔄 **Keep-Alive Scheduler** — prevents cloud cold starts
+
+### Engineering Quality
+- ✅ **127 backend tests** across 18 classes, **90.1% line coverage** (684/759) and **76.6% branch coverage**; JaCoCo gate set at 80% line coverage
+- ✅ **5 Pact consumer contract tests** and **12/12 Docker Compose smoke assertions**
+- ✅ **GitHub Actions CI** covers backend tests, contracts, integration tests, frontend lint/build, Docker image build + Trivy scan, compose smoke, and a quality gate
+- ⚠️ **0 frontend unit tests** and the 9 Testcontainers tests currently skip in CI — both are documented gaps, not hidden
+- 📄 See [PORTFOLIO.md](PORTFOLIO.md) for the evidence table, interview answers, and residual-risk register
 
 ---
 
@@ -71,7 +78,6 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 | MySQL | 8.0 | Primary database |
 | Bucket4j | 8.15.0 | Rate limiting |
 | Apache Tika | 2.8.0 | MIME type detection |
-| Cloudinary SDK | 1.37.0 | Cloud file storage |
 | OkHttp | 4.9.3 | Brevo email API client |
 | SpringDoc OpenAPI | 2.8.5 | Swagger documentation |
 | Maven | 3.x | Build & dependency management |
@@ -92,9 +98,8 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 |---|---|
 | Render | Backend hosting (Docker) |
 | Railway | Frontend hosting (Docker) + MySQL database |
-| Cloudinary | Cloud file storage |
 | Docker Hub | Container image registry |
-| UptimeRobot | Keep-alive monitoring |
+| UptimeRobot | External uptime monitoring (optional) |
 | Brevo | Transactional email (OTP) |
 
 ---
@@ -115,13 +120,13 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
 │  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
 │  │  Security   │  │  Controllers  │  │   Schedulers  │  │
 │  │  JWT Filter │  │  Auth/File/  │  │  Cleanup      │  │
-│  │  Rate Limit │  │  Share/Stats │  │  KeepAlive    │  │
+│  │  Rate Limit │  │  Share/Stats │  │  Blacklist    │  │
 │  └─────────────┘  └──────────────┘  └───────────────┘  │
 │                           │                              │
 │  ┌────────────────────────▼─────────────────────────┐   │
 │  │                   Services                        │   │
 │  │  FileService │ AuthService │ FileShareService     │   │
-│  │  VirusTotal  │ Cloudinary  │ TokenBlacklist       │   │
+│  │  VirusTotal  │ Local disk  │ TokenBlacklist       │   │
 │  └────────────────────────┬─────────────────────────┘   │
 │                           │                              │
 └──────────────────────────┬──────────────────────────────┘
@@ -129,7 +134,7 @@ A production-grade, full-stack secure file sharing platform built with **Java Sp
           ┌────────────────┼────────────────┐
           ▼                ▼                ▼
    ┌─────────────┐  ┌───────────┐  ┌──────────────┐
-   │   MySQL DB  │  │Cloudinary │  │  VirusTotal  │
+   │   MySQL DB  │  │Local disk │  │  VirusTotal  │
    │  (Railway)  │  │  Storage  │  │     API      │
    └─────────────┘  └───────────┘  └──────────────┘
 ```
@@ -173,7 +178,8 @@ DB-backed solution:
 2. Email OTP verification        — prevents fake registrations
 3. JWT (HS256, 2hr expiry)      — stateless authentication
 4. Token blacklist (DB-backed)   — logout invalidation
-5. Rate limiting (Bucket4j)      — 5 req/min on share endpoints
+5. Rate limiting (Bucket4j)      — 5/min download, 15/15min login,
+                                   10/15min register, 10/5min OTP (per IP)
 6. MIME type detection (Tika)    — content-based file validation
 7. Executable blocking           — rejects dangerous file types
 8. Path traversal protection     — filename sanitization
@@ -209,7 +215,7 @@ GET    /api/files/my-files             List all uploaded files with details
 ### Sharing
 ```
 POST   /api/share/generate      Generate share link (JWT required)
-GET    /api/share/download/{token}  Download via share link (public)
+GET    /api/share/download/{token}  Download via share link (JWT required)
 ```
 
 ### Statistics (JWT Required)
@@ -231,9 +237,9 @@ GET    /v3/api-docs             OpenAPI JSON specification
 ```sql
 users                    — credentials, OTP, timestamps
 user_roles               — role assignments (ROLE_USER, ROLE_ADMIN)
-files                    — metadata, Cloudinary URL, expiry
+files                    - metadata, local disk path, expiry
 shared_links             — tokens, download limits, expiry
-download_logs            — who downloaded, when, IP address
+download_logs            - who downloaded and when
 user_activity_logs       — full audit trail (LOGIN, LOGOUT, UPLOAD, DOWNLOAD)
 blacklisted_tokens       — DB-backed JWT blacklist with cleanup
 ```
@@ -285,10 +291,6 @@ spring.mail.username=your_brevo_smtp_user
 spring.mail.password=your_brevo_smtp_password
 
 brevo.api.key=your_brevo_api_key
-
-cloudinary.cloud_name=your_cloud_name
-cloudinary.api_key=your_cloudinary_api_key
-cloudinary.api_secret=your_cloudinary_api_secret
 
 virustotal.api.key=your_virustotal_api_key
 
@@ -344,12 +346,8 @@ docker compose up --build -d --wait
 | `MAIL_USERNAME` | SMTP username | `brevo_user` |
 | `MAIL_PASSWORD` | SMTP password | `brevo_smtp_key` |
 | `BREVO_API_KEY` | Brevo REST API key | `xkeysib-...` |
-| `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name | `myapp` |
-| `CLOUDINARY_API_KEY` | Cloudinary API key | `123456789` |
-| `CLOUDINARY_API_SECRET` | Cloudinary secret | `abcdef...` |
-| `VIRUSTOTAL_API_KEY` | VirusTotal API key | `abc123...` |
+| `VIRUSTOTAL_API_KEY` | VirusTotal API key (blank = scanning skipped) | `abc123...` |
 | `CORS_ALLOWED_ORIGIN` | Frontend URL | `https://myapp.railway.app` |
-| `APP_BASE_URL` | Backend URL (keep-alive) | `https://myapi.onrender.com` |
 
 ### Frontend (Build-time)
 | Variable | Description | Example |
@@ -402,7 +400,7 @@ docker compose --profile tls up -d --build --wait
 |---|---|---|
 | Frontend + backend + MySQL | Docker Compose on one VM | ~2 GB RAM; no local antivirus |
 | TLS | Caddy (`tls` profile) | Automatic Let's Encrypt certificates |
-| File storage | Cloudinary | 25 GB free tier |
+| File storage | Local disk (Docker volume) | No external storage dependency |
 | Email | Brevo | 300 emails/day free |
 | Virus scan | VirusTotal API | 500 requests/day free; non-blocking |
 
@@ -420,7 +418,7 @@ SFTG/
 │   └── app/
 │       ├── SFTG-backend/
 │       │   ├── src/main/java/com/securetransfer/SFTG/
-│       │   │   ├── config/          # CORS, Cloudinary, AppConfig
+│       │   │   ├── config/          # CORS, correlation ID, app config
 │       │   │   ├── controller/      # Auth, File, Share, Account, Stats
 │       │   │   ├── dto/             # Request/Response objects
 │       │   │   ├── exception/       # Custom exceptions + global handler
@@ -470,11 +468,11 @@ File extensions are trivially spoofed (`malware.exe` renamed to `document.pdf`).
 ## 🔮 Future Improvements
 
 - [ ] Refresh token strategy (15-min access + 7-day refresh)
-- [ ] Unit and integration tests (JUnit 5 + Mockito)
+- [ ] Frontend unit tests (currently 0; backend has 127)
+- [ ] Fix the Testcontainers suite so the 9 integration tests run in GitHub Actions
 - [ ] API versioning (`/api/v1/`)
 - [ ] File encryption at rest
-- [ ] Redis for token blacklist (faster than MySQL)
-- [ ] CI/CD pipeline (GitHub Actions)
+- [ ] Distributed rate limiting (Redis) for multi-instance deployments
 - [ ] Admin dashboard for user management
 - [ ] Configurable file expiry per upload
 
@@ -498,6 +496,6 @@ This project is developed for educational and portfolio demonstration purposes.
 ---
 
 <div align="center">
-  <strong>Built with production-grade security patterns for Fintech readiness</strong><br/>
-  <sub>Spring Boot · React · Docker · JWT · VirusTotal · Cloudinary</sub>
+  <strong>Built with tests, CI, and documented residual risk</strong><br/>
+  <sub>Spring Boot · React · Docker · JWT · VirusTotal · Local disk</sub>
 </div>

@@ -26,8 +26,8 @@ Only Caddy is exposed publicly. The backend and MySQL ports are bound to
 - A domain with an **A record** pointing at the VM's public IP (for HTTPS).
 - Firewall/security group open on **22, 80, 443 only**.
   Do **not** open 3306, 8000, or 8080.
-- A VirusTotal API key (free tier is fine), plus Brevo and Cloudinary
-  credentials if you use email and cloud file storage.
+- A VirusTotal API key (free tier is fine), plus Brevo credentials if you
+  use email OTP verification.
 
 ## 2. Install Docker
 
@@ -75,11 +75,9 @@ Required values:
 | `DOMAIN` | `files.example.com` (the DNS name) |
 | `FRONTEND_PORT` | `8081` so Caddy can own ports 80/443 |
 | `CORS_ALLOWED_ORIGIN` | `https://files.example.com` |
-| `APP_BASE_URL` | `https://files.example.com` |
 | `VITE_API_URL` | `/api` (do not change for this stack) |
 | `VIRUSTOTAL_API_KEY` | your VirusTotal key (blank = scans skipped) |
 | `BREVO_API_KEY`, `MAIL_*` | email credentials |
-| `CLOUDINARY_*` | optional cloud storage credentials |
 
 Generate the JWT secret and DB password:
 
@@ -180,7 +178,7 @@ smoke test, then move to a domain + HTTPS.
 - [ ] MySQL, backend, and frontend ports are **not** reachable from the internet.
 - [ ] Strong `DB_PASSWORD` and `JWT_SECRET` set; `.env` is not committed.
 - [ ] VirusTotal key set (readiness shows `virustotal: configured`).
-- [ ] Brevo and Cloudinary credentials verified with a real registration/upload.
+- [ ] Brevo credentials verified with a real registration.
 - [ ] Nightly database + uploads backup copied off the VM.
 - [ ] Uptime monitor points at `https://DOMAIN/` and `https://DOMAIN/api/stats/health`.
 - [ ] Previously exposed credentials rotated and git history purged
@@ -196,5 +194,5 @@ smoke test, then move to a domain + HTTPS.
 - **Managed MySQL:** set `DB_URL` to the provider's JDBC URL and do not start
   the `mysql` service. Keep `DB_USERNAME`/`DB_PASSWORD` in the platform's
   secret manager.
-- **Object storage:** if you use Cloudinary for file bytes, mount fewer
-  volumes, but keep `uploads_data` if `file.upload-dir` is used as a fallback.
+- **File storage:** uploads live in the `uploads_data` Docker volume
+  (`FILE_UPLOAD_DIR=/app/uploads`). Back up that volume together with MySQL.
