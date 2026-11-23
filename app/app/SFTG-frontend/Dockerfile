@@ -15,7 +15,7 @@ RUN npm run build
 # nginxinc/nginx-unprivileged is purpose-built to run as a non-root user
 # (UID 101) and listens on 8080, so the container never needs to bind a
 # privileged port or run as root.
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 
 # Replace the default server block with the SFTG config.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
